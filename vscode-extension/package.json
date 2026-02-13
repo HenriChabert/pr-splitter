@@ -1,0 +1,34 @@
+{
+  "name": "pr-splitter",
+  "displayName": "PR Splitter",
+  "description": "Split large PRs into smaller, file-based PRs",
+  "version": "0.0.1",
+  "publisher": "pr-splitter",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": [
+    "SCM"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "pr-splitter.split",
+        "title": "Split PR",
+        "category": "PR Splitter"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "pnpm dlx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

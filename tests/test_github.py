@@ -1,9 +1,10 @@
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from pr_splitter.errors import GitHubError
-from pr_splitter.github import check_gh_available, create_pr
+from pr_splitter.github import check_gh_available, create_pr, get_current_pr_info
 from pr_splitter.models import FileDiff, PrGroup
 
 
@@ -59,3 +60,27 @@ class TestCreatePr:
         )
         with pytest.raises(GitHubError, match="Failed to create PR"):
             create_pr(group, "main", True, "/tmp/repo")
+
+
+class TestGetCurrentPrInfo:
+    @patch("pr_splitter.github.subprocess.run")
+    def test_returns_title_and_body(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"title": "My PR", "body": "Description"}),
+            returncode=0,
+        )
+        info = get_current_pr_info("/tmp/repo")
+        assert info == {"title": "My PR", "body": "Description"}
+
+    @patch("pr_splitter.github.subprocess.run", side_effect=FileNotFoundError)
+    def test_gh_not_installed(self, mock_run: MagicMock) -> None:
+        info = get_current_pr_info("/tmp/repo")
+        assert info == {}
+
+    @patch(
+        "pr_splitter.github.subprocess.run",
+        side_effect=__import__("subprocess").CalledProcessError(1, "gh"),
+    )
+    def test_no_pr_exists(self, mock_run: MagicMock) -> None:
+        info = get_current_pr_info("/tmp/repo")
+        assert info == {}

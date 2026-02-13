@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 
 import click
@@ -6,6 +7,50 @@ from pr_splitter.errors import PrSplitterError
 from pr_splitter.github import create_all_prs
 from pr_splitter.models import SplitConfig
 from pr_splitter.splitter import execute_split, split
+
+
+def parse_group_option(values: tuple[str, ...]) -> dict[int, list[str]]:
+    result: dict[int, list[str]] = defaultdict(list)
+    for value in values:
+        if ":" not in value:
+            raise click.BadParameter(
+                f"Invalid format '{value}'. Expected 'GROUP:VALUE' (e.g., '1:src/**')."
+            )
+        group_str, pattern = value.split(":", 1)
+        try:
+            group_num = int(group_str)
+        except ValueError:
+            raise click.BadParameter(
+                f"Invalid group number '{group_str}' in '{value}'. Must be an integer."
+            )
+        if group_num < 1:
+            raise click.BadParameter(
+                f"Group number must be >= 1, got {group_num}."
+            )
+        result[group_num].append(pattern)
+    return dict(result)
+
+
+def parse_title_option(values: tuple[str, ...]) -> dict[int, str]:
+    result: dict[int, str] = {}
+    for value in values:
+        if ":" not in value:
+            raise click.BadParameter(
+                f"Invalid format '{value}'. Expected 'GROUP:TITLE' (e.g., '1:Add models')."
+            )
+        group_str, title = value.split(":", 1)
+        try:
+            group_num = int(group_str)
+        except ValueError:
+            raise click.BadParameter(
+                f"Invalid group number '{group_str}' in '{value}'. Must be an integer."
+            )
+        if group_num < 1:
+            raise click.BadParameter(
+                f"Group number must be >= 1, got {group_num}."
+            )
+        result[group_num] = title
+    return result
 
 
 @click.group()
@@ -75,6 +120,18 @@ def main() -> None:
     default=False,
     help="Skip confirmation prompt and proceed automatically.",
 )
+@click.option(
+    "--assign",
+    multiple=True,
+    default=(),
+    help="Assign files to a group: 'GROUP:PATTERN' (e.g., '1:src/**'). Repeatable.",
+)
+@click.option(
+    "--title",
+    multiple=True,
+    default=(),
+    help="Custom title for a group: 'GROUP:TITLE' (e.g., '1:Add models'). Repeatable.",
+)
 def split_cmd(
     files: tuple[str, ...],
     exclude: tuple[str, ...],
@@ -87,9 +144,14 @@ def split_cmd(
     push: bool,
     dry_run: bool,
     yes: bool,
+    assign: tuple[str, ...],
+    title: tuple[str, ...],
 ) -> None:
     """Split the current branch's changes into multiple PRs."""
     try:
+        assignments = parse_group_option(assign) if assign else {}
+        titles = parse_title_option(title) if title else {}
+
         config = SplitConfig(
             base_branch=base_branch,
             source_branch=source_branch,
@@ -101,6 +163,8 @@ def split_cmd(
             draft=draft,
             push=push,
             repo_path=Path("."),
+            assignments=assignments,
+            titles=titles,
         )
 
         result = split(config)

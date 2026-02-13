@@ -6,6 +6,24 @@ from pr_splitter.git_ops import push_branch
 from pr_splitter.models import CreatedPr, PrGroup
 
 
+def get_current_pr_info(repo_path: str) -> dict[str, str]:
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "title,body"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        data = json.loads(result.stdout)
+        return {
+            "title": data.get("title", ""),
+            "body": data.get("body", ""),
+        }
+    except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError):
+        return {}
+
+
 def check_gh_available() -> None:
     try:
         subprocess.run(

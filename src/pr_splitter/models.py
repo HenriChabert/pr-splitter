@@ -15,11 +15,25 @@ class SplitConfig(BaseModel):
     draft: bool = True
     push: bool = True
     repo_path: Path = Field(default_factory=lambda: Path("."))
+    assignments: dict[int, list[str]] = Field(default_factory=dict)
+    titles: dict[int, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_config(self) -> "SplitConfig":
         if self.source_branch and self.source_branch == self.base_branch:
             raise ValueError("source_branch and base_branch must be different")
+        for group_num in self.assignments:
+            if group_num < 1 or group_num > self.num_prs:
+                raise ValueError(
+                    f"Assignment group {group_num} is out of range "
+                    f"(must be between 1 and {self.num_prs})"
+                )
+        for group_num in self.titles:
+            if group_num < 1 or group_num > self.num_prs:
+                raise ValueError(
+                    f"Title group {group_num} is out of range "
+                    f"(must be between 1 and {self.num_prs})"
+                )
         return self
 
 

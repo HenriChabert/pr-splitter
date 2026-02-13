@@ -8,6 +8,7 @@ from pr_splitter.git_ops import (
     open_repo,
     validate_repo_state,
 )
+from pr_splitter.github import get_current_pr_info
 from pr_splitter.models import FileDiff, PrGroup, SplitConfig, SplitResult
 
 
@@ -48,11 +49,46 @@ def distribute_files(files: list[FileDiff], num_prs: int) -> list[list[FileDiff]
     return [g for g in groups if g]
 
 
-def generate_branch_name(source_branch: str, prefix: str, index: int, total: int) -> str:
-    # Strip any existing prefix-like patterns from the source branch
+def assign_files(
+    files: list[FileDiff],
+    assignments: dict[int, list[str]],
+    num_prs: int,
+) -> list[list[FileDiff]]:
+    groups: list[list[FileDiff]] = [[] for _ in range(num_prs)]
+    leftover: list[FileDiff] = []
+
+    # Build pathspecs for each group
+    group_specs: dict[int, pathspec.PathSpec] = {}
+    for group_num, patterns in assignments.items():
+        group_specs[group_num] = pathspec.PathSpec.from_lines("gitignore", patterns)
+
+    sorted_files = sorted(files, key=lambda f: f.path)
+    for f in sorted_files:
+        assigned = False
+        # Check groups in order (1, 2, 3, ...)
+        for group_num in sorted(group_specs.keys()):
+            if group_specs[group_num].match_file(f.path):
+                groups[group_num - 1].append(f)  # 1-indexed to 0-indexed
+                assigned = True
+                break
+        if not assigned:
+            leftover.append(f)
+
+    result = [g for g in groups if g]
+    if leftover:
+        result.append(leftover)
+
+    return result
+
+
+def generate_branch_name(
+    source_branch: str, prefix: str, index: int, total: int, is_leftover: bool = False
+) -> str:
     base = source_branch
     if prefix and not base.startswith(prefix):
         base = f"{prefix}{base}"
+    if is_leftover:
+        return f"{base}-part-leftover-of-{total}"
     return f"{base}-part-{index + 1}-of-{total}"
 
 
@@ -61,8 +97,16 @@ def build_pr_body(
     total: int,
     source_branch: str,
     depends_on: str | None = None,
+    source_body: str | None = None,
 ) -> str:
     lines: list[str] = []
+
+    if source_body:
+        lines.append(source_body)
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
     lines.append(f"Part {group.index + 1} of {total} from `{source_branch}`.")
     lines.append("")
     lines.append("## Files")
@@ -104,21 +148,50 @@ def split(config: SplitConfig) -> SplitResult:
             f"Total changed files: {len(all_files)}."
         )
 
-    warnings: list[str] = []
-    actual_num_prs = min(config.num_prs, len(filtered))
-    if actual_num_prs < config.num_prs:
-        warnings.append(
-            f"Requested {config.num_prs} PRs but only {len(filtered)} files "
-            f"match. Using {actual_num_prs} PRs instead."
-        )
+    # Try to fetch source PR info for titles and body
+    pr_info = get_current_pr_info(str(config.repo_path))
+    source_pr_title = pr_info.get("title", "")
+    source_body = pr_info.get("body", "") or None
+    base_title = source_pr_title or source_branch
 
-    distributed = distribute_files(filtered, actual_num_prs)
+    warnings: list[str] = []
+
+    if config.assignments:
+        distributed = assign_files(filtered, config.assignments, config.num_prs)
+        has_leftover = len(distributed) > config.num_prs
+        if has_leftover:
+            leftover_count = len(distributed[-1])
+            warnings.append(
+                f"{leftover_count} file(s) were not matched by any --assign "
+                "pattern and will be in a separate group."
+            )
+    else:
+        actual_num_prs = min(config.num_prs, len(filtered))
+        if actual_num_prs < config.num_prs:
+            warnings.append(
+                f"Requested {config.num_prs} PRs but only {len(filtered)} files "
+                f"match. Using {actual_num_prs} PRs instead."
+            )
+        distributed = distribute_files(filtered, actual_num_prs)
+        has_leftover = False
 
     groups: list[PrGroup] = []
     total = len(distributed)
     for i, file_group in enumerate(distributed):
-        branch_name = generate_branch_name(source_branch, config.prefix, i, total)
-        title = f"[{i + 1}/{total}] {source_branch}"
+        is_leftover = has_leftover and i == len(distributed) - 1
+        branch_name = generate_branch_name(
+            source_branch, config.prefix, i, total, is_leftover=is_leftover
+        )
+
+        # Use custom title if provided (1-indexed), else default
+        custom_title = config.titles.get(i + 1)
+        if is_leftover:
+            title = f"[leftover/{total}] {base_title}"
+        elif custom_title:
+            title = f"[{i + 1}/{total}] {custom_title}"
+        else:
+            title = f"[{i + 1}/{total}] {base_title}"
+
         body = build_pr_body(
             PrGroup(
                 index=i,
@@ -131,6 +204,7 @@ def split(config: SplitConfig) -> SplitResult:
             total,
             source_branch,
             config.depends_on,
+            source_body,
         )
         groups.append(
             PrGroup(

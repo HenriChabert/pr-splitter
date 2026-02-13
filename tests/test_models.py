@@ -61,6 +61,28 @@ class TestSplitResult:
         assert result.groups == []
 
 
+class TestSplitConfigAssignments:
+    def test_valid_assignments(self) -> None:
+        config = SplitConfig(num_prs=3, assignments={1: ["src/**"], 3: ["tests/**"]})
+        assert config.assignments == {1: ["src/**"], 3: ["tests/**"]}
+
+    def test_assignment_group_too_high(self) -> None:
+        with pytest.raises(ValidationError, match="out of range"):
+            SplitConfig(num_prs=2, assignments={3: ["src/**"]})
+
+    def test_assignment_group_zero(self) -> None:
+        with pytest.raises(ValidationError, match="out of range"):
+            SplitConfig(num_prs=2, assignments={0: ["src/**"]})
+
+    def test_valid_titles(self) -> None:
+        config = SplitConfig(num_prs=2, titles={1: "Models", 2: "API"})
+        assert config.titles == {1: "Models", 2: "API"}
+
+    def test_title_group_too_high(self) -> None:
+        with pytest.raises(ValidationError, match="out of range"):
+            SplitConfig(num_prs=2, titles={3: "Extra"})
+
+
 class TestCreatedPr:
     def test_basic(self) -> None:
         pr = CreatedPr(
