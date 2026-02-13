@@ -16,7 +16,25 @@ export class SplitModel {
   sourceBranch = "";
   active = false;
 
-  startSplit(numPrs: number, files: SplitFile[], baseBranch: string, sourceBranch: string): void {
+  startSplit(
+    numPrs: number,
+    files: SplitFile[],
+    baseBranch: string,
+    sourceBranch: string
+  ): void {
+    if (numPrs < 1) {
+      throw new Error("numPrs must be at least 1");
+    }
+    if (!baseBranch) {
+      throw new Error("baseBranch is required");
+    }
+    if (!sourceBranch) {
+      throw new Error("sourceBranch is required");
+    }
+    if (files.length === 0) {
+      throw new Error("files must not be empty");
+    }
+
     this.baseBranch = baseBranch;
     this.sourceBranch = sourceBranch;
     this.unassigned = [...files];
@@ -31,7 +49,17 @@ export class SplitModel {
     this.active = true;
   }
 
-  moveFiles(files: SplitFile[], targetGroupId: number | "unassigned"): void {
+  moveFiles(
+    files: SplitFile[],
+    targetGroupId: number | "unassigned"
+  ): boolean {
+    if (
+      targetGroupId !== "unassigned" &&
+      !this.groups.some((g) => g.id === targetGroupId)
+    ) {
+      return false;
+    }
+
     const filePaths = new Set(files.map((f) => f.path));
 
     // Remove from unassigned
@@ -51,21 +79,23 @@ export class SplitModel {
         target.files.push(...files);
       }
     }
+
+    return true;
   }
 
-  renameGroup(groupId: number, label: string): void {
+  renameGroup(groupId: number, label: string): boolean {
     const group = this.groups.find((g) => g.id === groupId);
-    if (group) {
-      group.label = label;
-    }
+    if (!group) return false;
+    group.label = label;
+    return true;
   }
 
-  deleteGroup(groupId: number): void {
+  deleteGroup(groupId: number): boolean {
     const group = this.groups.find((g) => g.id === groupId);
-    if (group) {
-      this.unassigned.push(...group.files);
-      this.groups = this.groups.filter((g) => g.id !== groupId);
-    }
+    if (!group) return false;
+    this.unassigned.push(...group.files);
+    this.groups = this.groups.filter((g) => g.id !== groupId);
+    return true;
   }
 
   reset(): void {
@@ -76,7 +106,7 @@ export class SplitModel {
     this.sourceBranch = "";
   }
 
-  /** Build --assign args for the CLI. Groups files by exact path. */
+  /** Build --assign args for the CLI. */
   getAssignArgs(): string[] {
     const args: string[] = [];
     for (const group of this.groups) {
@@ -91,7 +121,6 @@ export class SplitModel {
   getTitleArgs(): string[] {
     const args: string[] = [];
     for (const group of this.groups) {
-      // Only include if label was changed from default
       if (group.label !== `PR ${group.id}`) {
         args.push("--title", `${group.id}:${group.label}`);
       }
@@ -99,12 +128,10 @@ export class SplitModel {
     return args;
   }
 
-  /** Number of groups (for --num-prs). */
   get numPrs(): number {
     return this.groups.length;
   }
 
-  /** Whether the split can be executed (all files assigned, at least one group with files). */
   get canExecute(): boolean {
     return (
       this.active &&

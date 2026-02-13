@@ -1,7 +1,17 @@
 import * as vscode from "vscode";
 import { SplitModel } from "./splitModel";
-import { SourceTreeProvider, GroupsTreeProvider, GroupNode, FileNode, FolderNode } from "./splitTreeProvider";
+import { GroupNode, FileNode, FolderNode } from "./treeNodes";
+import { SourceTreeProvider } from "./sourceTreeProvider";
+import { GroupsTreeProvider } from "./groupsTreeProvider";
 import { getChangedFiles, getCurrentBranch, executeSplit } from "./gitHelper";
+
+function pluralize(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+interface GroupPickItem extends vscode.QuickPickItem {
+  groupId: number | "unassigned";
+}
 
 export function activate(context: vscode.ExtensionContext) {
   const model = new SplitModel();
@@ -10,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
     sourceProvider.refresh();
     groupsProvider.refresh();
     sourceView.description = model.active
-      ? `${model.unassigned.length} file${model.unassigned.length === 1 ? "" : "s"}`
+      ? pluralize(model.unassigned.length, "file")
       : "";
   }
 
@@ -152,7 +162,13 @@ export function activate(context: vscode.ExtensionContext) {
       args.push("-y");
     }
 
-    executeSplit(cwd, args);
+    try {
+      executeSplit(cwd, args);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      vscode.window.showErrorMessage(`Failed to execute split: ${msg}`);
+      return;
+    }
 
     if (!dryRun) {
       model.reset();
@@ -180,32 +196,28 @@ export function activate(context: vscode.ExtensionContext) {
       if (!model.active) return;
       if (!(node instanceof FileNode) && !(node instanceof FolderNode)) return;
 
-      // Collect files from the clicked node
       const files =
         node instanceof FolderNode ? node.files : [node.file];
 
-      // Build QuickPick items: all PR groups + Unassigned
-      const items: vscode.QuickPickItem[] = [
-        { label: "Unassigned", description: "Move back to unassigned" },
+      const items: GroupPickItem[] = [
+        {
+          label: "Unassigned",
+          description: "Move back to unassigned",
+          groupId: "unassigned",
+        },
         ...model.groups.map((g) => ({
           label: g.label,
-          description: `${g.files.length} file${g.files.length === 1 ? "" : "s"}`,
+          description: pluralize(g.files.length, "file"),
+          groupId: g.id,
         })),
       ];
 
       const picked = await vscode.window.showQuickPick(items, {
-        placeHolder: `Assign ${files.length} file${files.length === 1 ? "" : "s"} to...`,
+        placeHolder: `Assign ${pluralize(files.length, "file")} to...`,
       });
       if (!picked) return;
 
-      if (picked.label === "Unassigned") {
-        model.moveFiles(files, "unassigned");
-      } else {
-        const group = model.groups.find((g) => g.label === picked.label);
-        if (group) {
-          model.moveFiles(files, group.id);
-        }
-      }
+      model.moveFiles(files, picked.groupId);
       refreshAll();
     }
   );

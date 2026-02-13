@@ -21,11 +21,17 @@ function run(
   });
 }
 
+export function shellEscape(arg: string): string {
+  if (/^[a-zA-Z0-9_./:=@-]+$/.test(arg)) {
+    return arg;
+  }
+  return "'" + arg.replace(/'/g, "'\\''") + "'";
+}
+
 export async function getChangedFiles(
   cwd: string,
   baseBranch: string
 ): Promise<SplitFile[]> {
-  // Find merge base
   const mergeBase = await run("git", ["merge-base", baseBranch, "HEAD"], cwd);
 
   const output = await run(
@@ -37,11 +43,11 @@ export async function getChangedFiles(
   if (!output) return [];
 
   const files: SplitFile[] = [];
-  for (const line of output.split("\n")) {
+  for (const line of output.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const parts = line.split("\t");
     const statusChar = parts[0][0];
-    const path = parts[parts.length - 1];
+    const filePath = parts[parts.length - 1];
 
     let status: SplitFile["status"];
     switch (statusChar) {
@@ -58,10 +64,13 @@ export async function getChangedFiles(
         status = "R";
         break;
       default:
+        console.warn(
+          `[PR-Splitter] Unknown git status character: "${statusChar}" for file: ${filePath}`
+        );
         status = "M";
     }
 
-    files.push({ path, status });
+    files.push({ path: filePath, status });
   }
 
   return files.sort((a, b) => a.path.localeCompare(b.path));
@@ -72,13 +81,20 @@ export async function getCurrentBranch(cwd: string): Promise<string> {
 }
 
 export function executeSplit(cwd: string, args: string[]): void {
-  // Write command to a temp script to avoid terminal input buffer limits
-  const escaped = args.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" \\\n  ");
-  const script = `#!/bin/bash\ncd "${cwd}" && pr-splitter split \\\n  ${escaped}\n`;
+  const escaped = args.map(shellEscape).join(" \\\n  ");
+  const script = `#!/bin/bash\ncd ${shellEscape(cwd)} && pr-splitter split \\\n  ${escaped}\n`;
   const scriptPath = path.join(os.tmpdir(), `pr-splitter-${Date.now()}.sh`);
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
   const terminal = vscode.window.createTerminal("PR Splitter");
-  terminal.sendText(`bash "${scriptPath}"`);
+  terminal.sendText(`bash ${shellEscape(scriptPath)}`);
   terminal.show();
+
+  // Clean up the temp script when the terminal closes
+  const listener = vscode.window.onDidCloseTerminal((closed) => {
+    if (closed === terminal) {
+      listener.dispose();
+      fs.unlink(scriptPath, () => {});
+    }
+  });
 }

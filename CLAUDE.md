@@ -38,3 +38,29 @@ src/pr_splitter/
 ## Testing
 
 Tests use temporary git repos created via pytest fixtures (see `tests/conftest.py`). GitHub tests mock subprocess calls. CLI tests use Click's `CliRunner`. Tests that call `split()` mock `get_current_pr_info` to avoid subprocess calls.
+
+## VS Code Extension
+
+The `vscode-extension/` directory contains a VS Code extension that provides a drag-and-drop UI for the CLI.
+
+```bash
+cd vscode-extension
+pnpm install && pnpm run compile  # Build
+pnpm run test                     # Run tests (vitest, 48 tests)
+```
+
+### Extension architecture
+
+```
+vscode-extension/src/
+  extension.ts          — Activation, command registration, tree view wiring
+  splitModel.ts         — Data model (groups, files, assign/title args)
+  gitHelper.ts          — Git operations (changed files, branch) + terminal execution
+  treeNodes.ts          — Tree node types (GroupNode, FolderNode, FileNode, ActionNode)
+  treeHelpers.ts        — Directory tree building, shared rendering, drag helpers
+  dragState.ts          — Encapsulated cross-tree drag state with auto-clear
+  sourceTreeProvider.ts — Unassigned files tree (left panel)
+  groupsTreeProvider.ts — PR groups tree (right panel)
+```
+
+Two-panel layout in the SCM sidebar. Cross-tree drag-and-drop uses a shared module variable (DataTransfer carries only a marker). The `assignTo` command provides a QuickPick alternative to drag-and-drop.

@@ -37,6 +37,20 @@ Then install the `.vsix` file: Extensions > ... > Install from VSIX.
 |---------|-------------|
 | `PR Splitter: Start PR Split` | Begin a new split session |
 | `PR Splitter: Execute Split` | Run the split with current assignments |
+| `PR Splitter: Dry Run` | Preview the split without creating branches |
 | `PR Splitter: Cancel Split` | Cancel and reset the current session |
+| `PR Splitter: Assign to PR...` | Assign a file or folder to a PR group via picker |
 | `PR Splitter: Rename` | Rename a PR group (sets PR title) |
 | `PR Splitter: Delete Group` | Delete a group, moving its files to Unassigned |
+
+## Development
+
+```bash
+cd vscode-extension
+pnpm install
+pnpm run compile    # Build
+pnpm run watch      # Build in watch mode
+pnpm run test       # Run tests (vitest)
+pnpm run test:watch # Run tests in watch mode
+pnpm run package    # Package .vsix
+```
