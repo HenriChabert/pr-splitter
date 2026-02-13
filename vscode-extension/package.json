@@ -1,7 +1,7 @@
 {
   "name": "pr-splitter",
   "displayName": "PR Splitter",
-  "description": "Split large PRs into smaller, file-based PRs",
+  "description": "Split large PRs into smaller, file-based PRs with drag-and-drop",
   "version": "0.0.1",
   "publisher": "pr-splitter",
   "license": "MIT",
@@ -13,13 +13,84 @@
     "SCM"
   ],
   "contributes": {
+    "views": {
+      "scm": [
+        {
+          "id": "prSplitterView",
+          "name": "PR Splitter"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "prSplitterView",
+        "contents": "Split your PR into smaller, reviewable pieces.\n[Start PR Split](command:pr-splitter.startSplit)",
+        "when": "!pr-splitter.active"
+      }
+    ],
     "commands": [
       {
-        "command": "pr-splitter.split",
-        "title": "Split PR",
-        "category": "PR Splitter"
+        "command": "pr-splitter.startSplit",
+        "title": "Start PR Split",
+        "category": "PR Splitter",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "pr-splitter.cancelSplit",
+        "title": "Cancel Split",
+        "category": "PR Splitter",
+        "icon": "$(close)"
+      },
+      {
+        "command": "pr-splitter.executeSplit",
+        "title": "Execute Split",
+        "category": "PR Splitter",
+        "icon": "$(play)"
+      },
+      {
+        "command": "pr-splitter.renameGroup",
+        "title": "Rename",
+        "category": "PR Splitter",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "pr-splitter.deleteGroup",
+        "title": "Delete Group",
+        "category": "PR Splitter",
+        "icon": "$(trash)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pr-splitter.startSplit",
+          "when": "view == prSplitterView && !pr-splitter.active",
+          "group": "navigation"
+        },
+        {
+          "command": "pr-splitter.executeSplit",
+          "when": "view == prSplitterView && pr-splitter.active",
+          "group": "navigation"
+        },
+        {
+          "command": "pr-splitter.cancelSplit",
+          "when": "view == prSplitterView && pr-splitter.active",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pr-splitter.renameGroup",
+          "when": "view == prSplitterView && viewItem == group",
+          "group": "inline"
+        },
+        {
+          "command": "pr-splitter.deleteGroup",
+          "when": "view == prSplitterView && viewItem == group",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
