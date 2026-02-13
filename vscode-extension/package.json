@@ -16,14 +16,19 @@
     "views": {
       "scm": [
         {
-          "id": "prSplitterView",
+          "id": "prSplitterSourceView",
           "name": "PR Splitter"
+        },
+        {
+          "id": "prSplitterGroupsView",
+          "name": "PR Groups",
+          "when": "pr-splitter.active"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "prSplitterView",
+        "view": "prSplitterSourceView",
         "contents": "Split your PR into smaller, reviewable pieces.\n[Start PR Split](command:pr-splitter.startSplit)",
         "when": "!pr-splitter.active"
       }
@@ -48,6 +53,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "pr-splitter.dryRun",
+        "title": "Dry Run",
+        "category": "PR Splitter",
+        "icon": "$(eye)"
+      },
+      {
         "command": "pr-splitter.renameGroup",
         "title": "Rename",
         "category": "PR Splitter",
@@ -58,35 +69,56 @@
         "title": "Delete Group",
         "category": "PR Splitter",
         "icon": "$(trash)"
+      },
+      {
+        "command": "pr-splitter.assignTo",
+        "title": "Assign to PR...",
+        "category": "PR Splitter",
+        "icon": "$(move)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "pr-splitter.startSplit",
-          "when": "view == prSplitterView && !pr-splitter.active",
-          "group": "navigation"
-        },
-        {
-          "command": "pr-splitter.executeSplit",
-          "when": "view == prSplitterView && pr-splitter.active",
+          "when": "view == prSplitterSourceView && !pr-splitter.active",
           "group": "navigation"
         },
         {
           "command": "pr-splitter.cancelSplit",
-          "when": "view == prSplitterView && pr-splitter.active",
+          "when": "view == prSplitterSourceView && pr-splitter.active",
+          "group": "navigation"
+        },
+        {
+          "command": "pr-splitter.dryRun",
+          "when": "view == prSplitterGroupsView && pr-splitter.active",
+          "group": "navigation"
+        },
+        {
+          "command": "pr-splitter.executeSplit",
+          "when": "view == prSplitterGroupsView && pr-splitter.active",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
+          "command": "pr-splitter.assignTo",
+          "when": "view == prSplitterSourceView && viewItem =~ /^(file|folder)$/",
+          "group": "inline"
+        },
+        {
+          "command": "pr-splitter.assignTo",
+          "when": "view == prSplitterGroupsView && viewItem =~ /^(file|folder)$/",
+          "group": "inline"
+        },
+        {
           "command": "pr-splitter.renameGroup",
-          "when": "view == prSplitterView && viewItem == group",
+          "when": "view == prSplitterGroupsView && viewItem == group",
           "group": "inline"
         },
         {
           "command": "pr-splitter.deleteGroup",
-          "when": "view == prSplitterView && viewItem == group",
+          "when": "view == prSplitterGroupsView && viewItem == group",
           "group": "inline"
         }
       ]

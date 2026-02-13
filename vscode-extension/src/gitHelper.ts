@@ -1,4 +1,7 @@
 import { execFile } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import * as vscode from "vscode";
 import type { SplitFile } from "./splitModel";
 
@@ -69,8 +72,13 @@ export async function getCurrentBranch(cwd: string): Promise<string> {
 }
 
 export function executeSplit(cwd: string, args: string[]): void {
+  // Write command to a temp script to avoid terminal input buffer limits
+  const escaped = args.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" \\\n  ");
+  const script = `#!/bin/bash\ncd "${cwd}" && pr-splitter split \\\n  ${escaped}\n`;
+  const scriptPath = path.join(os.tmpdir(), `pr-splitter-${Date.now()}.sh`);
+  fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+
   const terminal = vscode.window.createTerminal("PR Splitter");
-  const escaped = args.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ");
-  terminal.sendText(`pr-splitter split ${escaped}`);
+  terminal.sendText(`bash "${scriptPath}"`);
   terminal.show();
 }
